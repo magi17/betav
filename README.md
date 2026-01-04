@@ -31,7 +31,7 @@
 
 # [Installer]
 ```
-wget -O kaldag.sh "https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/kaldag.sh" && chmod +x kaldag.sh && sed -i -e 's/\r$//' ~/kaldag.sh && ./kaldag.sh
+wget -O kaldag.sh "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/kaldag.sh" && chmod +x kaldag.sh && sed -i -e 's/\r$//' ~/kaldag.sh && ./kaldag.sh
 ```
 
 # Telegram
